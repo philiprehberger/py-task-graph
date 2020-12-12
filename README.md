@@ -1,5 +1,9 @@
 # philiprehberger-task-graph
 
+[![Tests](https://github.com/philiprehberger/py-task-graph/actions/workflows/publish.yml/badge.svg)](https://github.com/philiprehberger/py-task-graph/actions/workflows/publish.yml)
+[![PyPI version](https://img.shields.io/pypi/v/philiprehberger-task-graph.svg)](https://pypi.org/project/philiprehberger-task-graph/)
+[![License](https://img.shields.io/github/license/philiprehberger/py-task-graph)](LICENSE)
+
 Lightweight task dependency engine with topological execution.
 
 ## Installation
@@ -58,13 +62,14 @@ graph.run()
 
 ## API
 
-- `TaskGraph()` — Create a new task graph
-- `@graph.task(depends_on=None)` — Decorator to register a task
-- `graph.add_task(name, fn, depends_on=None)` — Add a task programmatically
-- `graph.run()` — Execute tasks in topological order
-- `graph.run_parallel(max_workers=4)` — Execute with thread parallelism
-- `graph.dry_run()` — Return execution order without running
-
+| Function / Class | Description |
+|------------------|-------------|
+| `TaskGraph()` | Create a new task graph |
+| `@graph.task(depends_on=None)` | Decorator to register a task |
+| `graph.add_task(name, fn, depends_on=None)` | Add a task programmatically |
+| `graph.run()` | Execute tasks in topological order |
+| `graph.run_parallel(max_workers=4)` | Execute with thread parallelism |
+| `graph.dry_run()` | Return execution order without running |
 
 ## Development
 
