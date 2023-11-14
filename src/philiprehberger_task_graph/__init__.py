@@ -23,6 +23,8 @@ class _Task:
     name: str
     fn: Callable[..., Any]
     depends: list[str] = field(default_factory=list)
+    timeout: float | None = None
+    retries: int = 0
 
 
 class TaskGraph:
@@ -39,16 +41,20 @@ class TaskGraph:
         self,
         name: str | None = None,
         depends: list[str] | None = None,
+        timeout: float | None = None,
+        retries: int = 0,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a task.
 
         Args:
             name: Task name. Defaults to the function name.
             depends: List of task names this task depends on.
+            timeout: Maximum execution time in seconds. Raises ``TimeoutError`` if exceeded.
+            retries: Number of times to retry on failure before propagating the exception.
         """
         def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
             task_name = name or fn.__name__
-            self.add_task(task_name, fn, depends)
+            self.add_task(task_name, fn, depends, timeout=timeout, retries=retries)
             return fn
         return decorator
 
@@ -57,6 +63,8 @@ class TaskGraph:
         name: str,
         fn: Callable[..., Any],
         depends: list[str] | None = None,
+        timeout: float | None = None,
+        retries: int = 0,
     ) -> None:
         """Register a task imperatively.
 
@@ -64,8 +72,34 @@ class TaskGraph:
             name: Unique task name.
             fn: Callable to execute.
             depends: List of task names this task depends on.
+            timeout: Maximum execution time in seconds. Raises ``TimeoutError`` if exceeded.
+            retries: Number of times to retry on failure before propagating the exception.
         """
-        self._tasks[name] = _Task(name=name, fn=fn, depends=depends or [])
+        self._tasks[name] = _Task(
+            name=name, fn=fn, depends=depends or [],
+            timeout=timeout, retries=retries,
+        )
+
+    def _execute_task(self, task: _Task) -> Any:
+        """Execute a single task with timeout and retry support."""
+        last_exc: BaseException | None = None
+        attempts = 1 + task.retries
+
+        for _ in range(attempts):
+            try:
+                if task.timeout is not None:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future: Future[Any] = executor.submit(task.fn)
+                        try:
+                            return future.result(timeout=task.timeout)
+                        except TimeoutError:
+                            raise
+                else:
+                    return task.fn()
+            except Exception as exc:
+                last_exc = exc
+
+        raise last_exc  # type: ignore[misc]
 
     def get_order(self) -> list[str]:
         """Return task names in topological execution order.
@@ -125,7 +159,7 @@ class TaskGraph:
 
         for name in order:
             task = self._tasks[name]
-            results[name] = task.fn()
+            results[name] = self._execute_task(task)
 
         return results
 
@@ -165,7 +199,7 @@ class TaskGraph:
                 while ready:
                     name = ready.popleft()
                     task = self._tasks[name]
-                    futures[name] = executor.submit(task.fn)
+                    futures[name] = executor.submit(self._execute_task, task)
                     pending.add(name)
 
                 done = {n for n in pending if futures[n].done()}
