@@ -26,11 +26,11 @@ def test_dependency_order():
     def fetch():
         order.append("fetch")
 
-    @graph.task(depends_on=["fetch"])
+    @graph.task(depends=["fetch"])
     def process():
         order.append("process")
 
-    @graph.task(depends_on=["process"])
+    @graph.task(depends=["process"])
     def save():
         order.append("save")
 
@@ -42,15 +42,15 @@ def test_add_task_programmatic():
     graph = TaskGraph()
     results = []
     graph.add_task("a", lambda: results.append("a"))
-    graph.add_task("b", lambda: results.append("b"), depends_on=["a"])
+    graph.add_task("b", lambda: results.append("b"), depends=["a"])
     graph.run()
     assert results == ["a", "b"]
 
 
 def test_cycle_detection():
     graph = TaskGraph()
-    graph.add_task("a", lambda: None, depends_on=["b"])
-    graph.add_task("b", lambda: None, depends_on=["a"])
+    graph.add_task("a", lambda: None, depends=["b"])
+    graph.add_task("b", lambda: None, depends=["a"])
     with pytest.raises(CycleError):
         graph.run()
 
@@ -58,8 +58,8 @@ def test_cycle_detection():
 def test_dry_run():
     graph = TaskGraph()
     graph.add_task("a", lambda: None)
-    graph.add_task("b", lambda: None, depends_on=["a"])
-    graph.add_task("c", lambda: None, depends_on=["b"])
+    graph.add_task("b", lambda: None, depends=["a"])
+    graph.add_task("c", lambda: None, depends=["b"])
     order = graph.dry_run()
     assert order == ["a", "b", "c"]
 
@@ -68,7 +68,7 @@ def test_parallel_execution():
     graph = TaskGraph()
     results = []
     graph.add_task("a", lambda: results.append("a"))
-    graph.add_task("b", lambda: results.append("b"), depends_on=["a"])
+    graph.add_task("b", lambda: results.append("b"), depends=["a"])
     graph.run_parallel(max_workers=2)
     assert results == ["a", "b"]
 
