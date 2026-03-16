@@ -65,6 +65,14 @@ graph.run()
 - `graph.run_parallel(max_workers=4)` — Execute with thread parallelism
 - `graph.dry_run()` — Return execution order without running
 
+
+## Development
+
+```bash
+pip install -e .
+python -m pytest tests/ -v
+```
+
 ## License
 
 MIT
