@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "philiprehberger-task-graph"
-version = "0.1.4"
+version = "0.1.5"
 description = "Lightweight task dependency engine with topological execution"
 readme = "README.md"
 license = "MIT"
@@ -26,3 +26,9 @@ Issues = "https://github.com/philiprehberger/py-task-graph/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/philiprehberger_task_graph"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
