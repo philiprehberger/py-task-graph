@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Fix version tag alignment with PyPI
+
 ## 0.1.2
 
 - Add Development section to README
