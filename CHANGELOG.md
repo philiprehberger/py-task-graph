@@ -1,5 +1,11 @@
 # Changelog
-## 0.1.7- Standardize README structure and fix compliance issues
+## 0.1.8 (2026-03-22)
+
+- Add test suite for task graph operations
+
+## 0.1.7
+
+- Standardize README structure and fix compliance issues
 ## 0.1.6
 
 - Fix classifiers and URLs, add badges, convert API to table format
