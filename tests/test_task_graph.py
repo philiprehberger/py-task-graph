@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from philiprehberger_task_graph import TaskGraph, CycleError
@@ -95,3 +97,83 @@ class TestTaskGraph:
         g.add_task("b", lambda: 2, depends=["a"])
         results = g.run_parallel(max_workers=2)
         assert results == {"a": 1, "b": 2}
+
+
+class TestTimeout:
+    def test_task_completes_within_timeout(self) -> None:
+        g = TaskGraph()
+        g.add_task("fast", lambda: 42, timeout=5.0)
+        results = g.run()
+        assert results == {"fast": 42}
+
+    def test_task_exceeds_timeout(self) -> None:
+        g = TaskGraph()
+        g.add_task("slow", lambda: time.sleep(10), timeout=0.1)
+        with pytest.raises(TimeoutError):
+            g.run()
+
+    def test_decorator_with_timeout(self) -> None:
+        g = TaskGraph()
+
+        @g.task(timeout=5.0)
+        def quick() -> str:
+            return "done"
+
+        results = g.run()
+        assert results["quick"] == "done"
+
+    def test_timeout_metadata_stored(self) -> None:
+        g = TaskGraph()
+        g.add_task("t", lambda: None, timeout=3.5)
+        assert g._tasks["t"].timeout == 3.5
+
+
+class TestRetries:
+    def test_succeeds_without_retry(self) -> None:
+        g = TaskGraph()
+        g.add_task("ok", lambda: 1, retries=2)
+        results = g.run()
+        assert results == {"ok": 1}
+
+    def test_retries_on_failure_then_succeeds(self) -> None:
+        attempts = {"count": 0}
+
+        def flaky() -> str:
+            attempts["count"] += 1
+            if attempts["count"] < 3:
+                raise ValueError("not yet")
+            return "success"
+
+        g = TaskGraph()
+        g.add_task("flaky", flaky, retries=2)
+        results = g.run()
+        assert results == {"flaky": "success"}
+        assert attempts["count"] == 3
+
+    def test_retries_exhausted_raises(self) -> None:
+        def always_fail() -> None:
+            raise RuntimeError("fail")
+
+        g = TaskGraph()
+        g.add_task("bad", always_fail, retries=2)
+        with pytest.raises(RuntimeError, match="fail"):
+            g.run()
+
+    def test_decorator_with_retries(self) -> None:
+        attempts = {"count": 0}
+        g = TaskGraph()
+
+        @g.task(retries=1)
+        def flaky() -> str:
+            attempts["count"] += 1
+            if attempts["count"] < 2:
+                raise ValueError("retry me")
+            return "ok"
+
+        results = g.run()
+        assert results["flaky"] == "ok"
+
+    def test_retries_metadata_stored(self) -> None:
+        g = TaskGraph()
+        g.add_task("t", lambda: None, retries=5)
+        assert g._tasks["t"].retries == 5
