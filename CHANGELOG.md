@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-04-27)
+
+- Add `pass_results` parameter to `run()` and `run_parallel()` — when True, each task receives its declared dependencies' return values as keyword arguments
+- Backfill missing dates on historical CHANGELOG entries
+
 ## 0.2.1 (2026-03-31)
 
 - Standardize README to 3-badge format with emoji Support section
@@ -17,23 +22,23 @@
 
 - Add test suite for task graph operations
 
-## 0.1.7
+## 0.1.7 (2026-03-19)
 
 - Standardize README structure and fix compliance issues
 
-## 0.1.6
+## 0.1.6 (2026-03-17)
 
 - Fix classifiers and URLs, add badges, convert API to table format
 
-## 0.1.5
+## 0.1.5 (2026-03-15)
 
 - Add pytest and mypy tool configuration to pyproject.toml
 
-## 0.1.4
+## 0.1.4 (2026-03-13)
 
 - Fix version tag alignment with PyPI
 
-## 0.1.2
+## 0.1.2 (2026-03-11)
 
 - Add Development section to README
 

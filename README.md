@@ -85,6 +85,19 @@ def resilient_task():
     return fetch_with_deadline()
 ```
 
+### Pass Dependency Results
+
+Pass each dependency's return value as a keyword argument to the task function (named after the dependency).
+
+```python
+graph = TaskGraph()
+graph.add_task("source", lambda: 7)
+graph.add_task("double", lambda source: source * 2, depends=["source"])
+
+results = graph.run(pass_results=True)
+# {"source": 7, "double": 14}
+```
+
 ### Cycle Detection
 
 ```python
@@ -101,8 +114,8 @@ graph.run()
 | `TaskGraph()` | Create a new task graph |
 | `@graph.task(name=None, depends=None, timeout=None, retries=0)` | Decorator to register a task with optional timeout and retries |
 | `graph.add_task(name, fn, depends=None, timeout=None, retries=0)` | Add a task programmatically |
-| `graph.run()` | Execute tasks in topological order |
-| `graph.run_parallel(max_workers=None)` | Execute with thread parallelism |
+| `graph.run(pass_results=False)` | Execute tasks in topological order; optionally pass dep results as kwargs |
+| `graph.run_parallel(max_workers=None, pass_results=False)` | Execute with thread parallelism |
 | `graph.dry_run()` | Return execution order without running |
 | `CycleError` | Raised when a dependency cycle is detected |
 

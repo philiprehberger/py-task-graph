@@ -177,3 +177,35 @@ class TestRetries:
         g = TaskGraph()
         g.add_task("t", lambda: None, retries=5)
         assert g._tasks["t"].retries == 5
+
+
+class TestPassResults:
+    def test_single_dependency_passes_result(self) -> None:
+        g = TaskGraph()
+        g.add_task("source", lambda: 7)
+        g.add_task("double", lambda source: source * 2, depends=["source"])
+        results = g.run(pass_results=True)
+        assert results == {"source": 7, "double": 14}
+
+    def test_multiple_dependencies_pass_results(self) -> None:
+        g = TaskGraph()
+        g.add_task("a", lambda: 3)
+        g.add_task("b", lambda: 4)
+        g.add_task("sum", lambda a, b: a + b, depends=["a", "b"])
+        results = g.run(pass_results=True)
+        assert results["sum"] == 7
+
+    def test_pass_results_off_by_default(self) -> None:
+        g = TaskGraph()
+        g.add_task("a", lambda: 1)
+        # Function takes no args; default behavior must not pass kwargs.
+        g.add_task("b", lambda: 2, depends=["a"])
+        results = g.run()
+        assert results == {"a": 1, "b": 2}
+
+    def test_pass_results_in_parallel(self) -> None:
+        g = TaskGraph()
+        g.add_task("a", lambda: 10)
+        g.add_task("b", lambda a: a + 5, depends=["a"])
+        results = g.run_parallel(max_workers=2, pass_results=True)
+        assert results == {"a": 10, "b": 15}

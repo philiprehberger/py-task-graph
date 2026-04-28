@@ -80,22 +80,23 @@ class TaskGraph:
             timeout=timeout, retries=retries,
         )
 
-    def _execute_task(self, task: _Task) -> Any:
+    def _execute_task(self, task: _Task, kwargs: dict[str, Any] | None = None) -> Any:
         """Execute a single task with timeout and retry support."""
         last_exc: BaseException | None = None
         attempts = 1 + task.retries
+        call_kwargs = kwargs or {}
 
         for _ in range(attempts):
             try:
                 if task.timeout is not None:
                     with ThreadPoolExecutor(max_workers=1) as executor:
-                        future: Future[Any] = executor.submit(task.fn)
+                        future: Future[Any] = executor.submit(lambda: task.fn(**call_kwargs))
                         try:
                             return future.result(timeout=task.timeout)
                         except TimeoutError:
                             raise
                 else:
-                    return task.fn()
+                    return task.fn(**call_kwargs)
             except Exception as exc:
                 last_exc = exc
 
@@ -148,8 +149,13 @@ class TaskGraph:
         """
         return self.get_order()
 
-    def run(self) -> dict[str, Any]:
+    def run(self, *, pass_results: bool = False) -> dict[str, Any]:
         """Execute all tasks in topological order.
+
+        Args:
+            pass_results: When True, each task's callable receives the results
+                of its declared dependencies as keyword arguments (keyed by
+                the dependency task name).
 
         Returns:
             Dict mapping task names to their return values.
@@ -159,11 +165,17 @@ class TaskGraph:
 
         for name in order:
             task = self._tasks[name]
-            results[name] = self._execute_task(task)
+            kwargs = {dep: results[dep] for dep in task.depends} if pass_results else None
+            results[name] = self._execute_task(task, kwargs)
 
         return results
 
-    def run_parallel(self, max_workers: int | None = None) -> dict[str, Any]:
+    def run_parallel(
+        self,
+        max_workers: int | None = None,
+        *,
+        pass_results: bool = False,
+    ) -> dict[str, Any]:
         """Execute tasks concurrently, respecting dependency order.
 
         Tasks without dependencies run in parallel. A task only starts
@@ -171,6 +183,9 @@ class TaskGraph:
 
         Args:
             max_workers: Maximum number of threads. Defaults to ThreadPoolExecutor default.
+            pass_results: When True, each task's callable receives the results
+                of its declared dependencies as keyword arguments (keyed by
+                the dependency task name).
 
         Returns:
             Dict mapping task names to their return values.
@@ -199,7 +214,8 @@ class TaskGraph:
                 while ready:
                     name = ready.popleft()
                     task = self._tasks[name]
-                    futures[name] = executor.submit(self._execute_task, task)
+                    kwargs = {dep: results[dep] for dep in task.depends} if pass_results else None
+                    futures[name] = executor.submit(self._execute_task, task, kwargs)
                     pending.add(name)
 
                 done = {n for n in pending if futures[n].done()}
