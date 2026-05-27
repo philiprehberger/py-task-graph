@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 (2026-05-26)
+
+- Add execution hooks: `on_before_run`, `on_after_run`, `on_error` for logging, metrics, or tracing without touching task functions
+- Add package-card image to README
+
 ## 0.3.0 (2026-04-27)
 
 - Add `pass_results` parameter to `run()` and `run_parallel()` — when True, each task receives its declared dependencies' return values as keyword arguments

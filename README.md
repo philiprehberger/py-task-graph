@@ -4,6 +4,8 @@
 [![PyPI version](https://img.shields.io/pypi/v/philiprehberger-task-graph.svg)](https://pypi.org/project/philiprehberger-task-graph/)
 [![Last updated](https://img.shields.io/github/last-commit/philiprehberger/py-task-graph)](https://github.com/philiprehberger/py-task-graph/commits/main)
 
+![philiprehberger-task-graph](https://raw.githubusercontent.com/philiprehberger/py-task-graph/main/package-card.webp)
+
 Lightweight task dependency engine with topological execution.
 
 ## Installation
@@ -98,6 +100,28 @@ results = graph.run(pass_results=True)
 # {"source": 7, "double": 14}
 ```
 
+### Execution Hooks
+
+Register callbacks to observe task execution — useful for logging, metrics, or tracing without modifying the task functions.
+
+```python
+graph = TaskGraph()
+
+@graph.on_before_run
+def log_start(name: str) -> None:
+    print(f"starting {name}")
+
+@graph.on_after_run
+def log_done(name: str, result: object, duration: float) -> None:
+    print(f"{name} done in {duration:.3f}s -> {result!r}")
+
+@graph.on_error
+def log_failure(name: str, exc: BaseException) -> None:
+    print(f"{name} failed: {exc!r}")
+```
+
+The error hook fires only after all retries have been exhausted; the original exception still propagates after every hook has run.
+
 ### Cycle Detection
 
 ```python
@@ -117,6 +141,9 @@ graph.run()
 | `graph.run(pass_results=False)` | Execute tasks in topological order; optionally pass dep results as kwargs |
 | `graph.run_parallel(max_workers=None, pass_results=False)` | Execute with thread parallelism |
 | `graph.dry_run()` | Return execution order without running |
+| `graph.on_before_run(hook)` | Register `(name) -> None` callback fired before each task |
+| `graph.on_after_run(hook)` | Register `(name, result, duration) -> None` callback fired after each successful task |
+| `graph.on_error(hook)` | Register `(name, exc) -> None` callback fired after retries are exhausted |
 | `CycleError` | Raised when a dependency cycle is detected |
 
 ## Development

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, Future
 from dataclasses import dataclass, field
@@ -12,6 +13,11 @@ __all__ = [
     "TaskGraph",
     "CycleError",
 ]
+
+
+BeforeHook = Callable[[str], None]
+AfterHook = Callable[[str, Any, float], None]
+ErrorHook = Callable[[str, BaseException], None]
 
 
 class CycleError(Exception):
@@ -36,6 +42,36 @@ class TaskGraph:
 
     def __init__(self) -> None:
         self._tasks: dict[str, _Task] = {}
+        self._before_hooks: list[BeforeHook] = []
+        self._after_hooks: list[AfterHook] = []
+        self._error_hooks: list[ErrorHook] = []
+
+    def on_before_run(self, hook: BeforeHook) -> BeforeHook:
+        """Register a callback fired right before each task starts.
+
+        The hook receives the task name. Multiple hooks fire in registration order.
+        Returns the hook so this can be used as a decorator.
+        """
+        self._before_hooks.append(hook)
+        return hook
+
+    def on_after_run(self, hook: AfterHook) -> AfterHook:
+        """Register a callback fired after each task completes successfully.
+
+        The hook receives ``(name, result, duration_seconds)``.
+        Returns the hook so this can be used as a decorator.
+        """
+        self._after_hooks.append(hook)
+        return hook
+
+    def on_error(self, hook: ErrorHook) -> ErrorHook:
+        """Register a callback fired when a task raises (after retries exhausted).
+
+        The hook receives ``(name, exception)``. The exception still propagates after
+        all error hooks have run. Returns the hook so this can be used as a decorator.
+        """
+        self._error_hooks.append(hook)
+        return hook
 
     def task(
         self,
@@ -81,26 +117,34 @@ class TaskGraph:
         )
 
     def _execute_task(self, task: _Task, kwargs: dict[str, Any] | None = None) -> Any:
-        """Execute a single task with timeout and retry support."""
+        """Execute a single task with timeout, retry, and hook support."""
         last_exc: BaseException | None = None
         attempts = 1 + task.retries
         call_kwargs = kwargs or {}
 
+        for hook in self._before_hooks:
+            hook(task.name)
+
+        started = time.monotonic()
         for _ in range(attempts):
             try:
                 if task.timeout is not None:
                     with ThreadPoolExecutor(max_workers=1) as executor:
                         future: Future[Any] = executor.submit(lambda: task.fn(**call_kwargs))
-                        try:
-                            return future.result(timeout=task.timeout)
-                        except TimeoutError:
-                            raise
+                        result = future.result(timeout=task.timeout)
                 else:
-                    return task.fn(**call_kwargs)
+                    result = task.fn(**call_kwargs)
+                duration = time.monotonic() - started
+                for after in self._after_hooks:
+                    after(task.name, result, duration)
+                return result
             except Exception as exc:
                 last_exc = exc
 
-        raise last_exc  # type: ignore[misc]
+        assert last_exc is not None
+        for error_hook in self._error_hooks:
+            error_hook(task.name, last_exc)
+        raise last_exc
 
     def get_order(self) -> list[str]:
         """Return task names in topological execution order.

@@ -209,3 +209,90 @@ class TestPassResults:
         g.add_task("b", lambda a: a + 5, depends=["a"])
         results = g.run_parallel(max_workers=2, pass_results=True)
         assert results == {"a": 10, "b": 15}
+
+
+class TestHooks:
+    def test_before_after_hooks_fire_in_order(self) -> None:
+        events: list[str] = []
+        g = TaskGraph()
+        g.on_before_run(lambda name: events.append(f"before:{name}"))
+        g.on_after_run(lambda name, result, dur: events.append(f"after:{name}:{result}"))
+        g.add_task("a", lambda: 1)
+        g.add_task("b", lambda: 2, depends=["a"])
+
+        g.run()
+
+        assert events == ["before:a", "after:a:1", "before:b", "after:b:2"]
+
+    def test_after_hook_receives_duration(self) -> None:
+        durations: list[float] = []
+        g = TaskGraph()
+        g.on_after_run(lambda name, result, dur: durations.append(dur))
+        g.add_task("a", lambda: time.sleep(0.01))
+
+        g.run()
+
+        assert len(durations) == 1
+        assert durations[0] >= 0.005
+
+    def test_error_hook_fires_then_exception_propagates(self) -> None:
+        captured: list[tuple[str, BaseException]] = []
+        g = TaskGraph()
+        g.on_error(lambda name, exc: captured.append((name, exc)))
+
+        def boom() -> None:
+            raise RuntimeError("nope")
+
+        g.add_task("a", boom)
+
+        with pytest.raises(RuntimeError, match="nope"):
+            g.run()
+
+        assert len(captured) == 1
+        assert captured[0][0] == "a"
+        assert isinstance(captured[0][1], RuntimeError)
+
+    def test_error_hook_not_called_when_retry_succeeds(self) -> None:
+        captured: list[tuple[str, BaseException]] = []
+        attempts = {"n": 0}
+
+        def flaky() -> int:
+            attempts["n"] += 1
+            if attempts["n"] < 2:
+                raise ValueError("retry me")
+            return 42
+
+        g = TaskGraph()
+        g.on_error(lambda name, exc: captured.append((name, exc)))
+        g.add_task("a", flaky, retries=2)
+
+        results = g.run()
+
+        assert results == {"a": 42}
+        assert captured == []
+
+    def test_hooks_fire_on_parallel_run(self) -> None:
+        before: list[str] = []
+        after: list[str] = []
+        g = TaskGraph()
+        g.on_before_run(lambda name: before.append(name))
+        g.on_after_run(lambda name, result, dur: after.append(name))
+        g.add_task("a", lambda: 1)
+        g.add_task("b", lambda: 2)
+
+        g.run_parallel(max_workers=2)
+
+        assert sorted(before) == ["a", "b"]
+        assert sorted(after) == ["a", "b"]
+
+    def test_on_before_usable_as_decorator(self) -> None:
+        g = TaskGraph()
+        seen: list[str] = []
+
+        @g.on_before_run
+        def _hook(name: str) -> None:
+            seen.append(name)
+
+        g.add_task("a", lambda: None)
+        g.run()
+        assert seen == ["a"]
